@@ -1,6 +1,5 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import OpenAI from 'openai';
 import { Teacher, Scenario, UserMode, Message, Role, Settings } from './types';
 import { TEACHERS, SCENARIOS, USER_MODES } from './constants';
 import TeacherSelector from './components/TeacherSelector';
@@ -100,11 +99,6 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, assistantMessagePlaceholder]);
 
     try {
-      const openai = new OpenAI({
-        apiKey: process.env.API_KEY as string,
-        dangerouslyAllowBrowser: true
-      });
-
       const teacher = TEACHERS.find(t => t.id === settings.teacherId)!;
       const scenario = SCENARIOS.find(s => s.id === settings.scenarioId)!;
       const userMode = USER_MODES.find(u => u.id === settings.userModeId)!;
@@ -112,30 +106,63 @@ const App: React.FC = () => {
       const systemPrompt = generateSystemPrompt(teacher, scenario, userMode);
 
       const chatMessages = [
-        { role: "system" as const, content: systemPrompt },
+        { role: "system", content: systemPrompt },
         ...messages.map(msg => ({
-          role: (msg.role === Role.User ? "user" : "assistant") as const,
+          role: msg.role === Role.User ? "user" : "assistant",
           content: msg.content
         })),
-        { role: "user" as const, content: text }
+        { role: "user", content: text }
       ];
 
-      const stream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: chatMessages,
-        temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
-        stream: true,
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: chatMessages,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens
+        })
       });
 
+      if (!response.ok) {
+        throw new Error(`Chat API error: ${response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
       let fullResponse = '';
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        fullResponse += content;
-        setMessages(prev => prev.map((msg, index) =>
-          index === prev.length - 1 ? { ...msg, content: fullResponse } : msg
-        ));
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value);
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') break;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                fullResponse += parsed.content;
+                setMessages(prev => prev.map((msg, index) =>
+                  index === prev.length - 1 ? { ...msg, content: fullResponse } : msg
+                ));
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
       }
 
       const { mainContent, suggestions } = parseResponseWithSuggestions(fullResponse);

@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { Teacher, Scenario, UserMode } from '../types';
 
 export const generateSystemPrompt = (teacher: Teacher, scenario: Scenario, userMode: UserMode): string => {
@@ -50,17 +49,20 @@ export const generateSystemPrompt = (teacher: Teacher, scenario: Scenario, userM
 
 export const generateSpeech = async (text: string, voiceName: string): Promise<ArrayBuffer | null> => {
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.API_KEY as string,
-      dangerouslyAllowBrowser: true
+    const response = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        voice: voiceName
+      })
     });
 
-    const response = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: voiceName as any,
-      input: text,
-      response_format: "mp3"
-    });
+    if (!response.ok) {
+      throw new Error(`TTS API error: ${response.statusText}`);
+    }
 
     const arrayBuffer = await response.arrayBuffer();
     return arrayBuffer;
