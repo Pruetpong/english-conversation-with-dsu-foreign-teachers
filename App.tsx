@@ -1,13 +1,13 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { GoogleGenAI, Chat } from '@google/genai';
+import React, { useState, useCallback, useEffect } from 'react';
+import OpenAI from 'openai';
 import { Teacher, Scenario, UserMode, Message, Role, Settings } from './types';
 import { TEACHERS, SCENARIOS, USER_MODES } from './constants';
 import TeacherSelector from './components/TeacherSelector';
 import SettingsPanel from './components/SettingsPanel';
 import ChatWindow from './components/ChatWindow';
 import MessageInput from './components/MessageInput';
-import { generateSystemPrompt, generateSpeech } from './services/geminiService';
+import { generateSystemPrompt, generateSpeech } from './services/openaiService';
 import { LogoIcon, MenuIcon, XIcon } from './components/icons';
 
 const parseResponseWithSuggestions = (responseText: string): { mainContent: string; suggestions: string[] } => {
@@ -69,13 +69,10 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  
-  const chatRef = useRef<Chat | null>(null);
 
   const selectedTeacher = TEACHERS.find(t => t.id === settings.teacherId)!;
-  
+
   useEffect(() => {
-    chatRef.current = null;
     setMessages([]);
   }, [settings.teacherId, settings.scenarioId, settings.userModeId]);
 
@@ -90,7 +87,7 @@ const App: React.FC = () => {
       content: text,
       timestamp: new Date().toISOString()
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
 
     const assistantMessagePlaceholder: Message = {
@@ -103,30 +100,40 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, assistantMessagePlaceholder]);
 
     try {
-      if (!chatRef.current) {
-        const teacher = TEACHERS.find(t => t.id === settings.teacherId)!;
-        const scenario = SCENARIOS.find(s => s.id === settings.scenarioId)!;
-        const userMode = USER_MODES.find(u => u.id === settings.userModeId)!;
-        
-        const systemPrompt = generateSystemPrompt(teacher, scenario, userMode);
-        
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-        chatRef.current = ai.chats.create({
-          model: 'gemini-2.5-flash',
-          config: {
-            systemInstruction: systemPrompt,
-            temperature: settings.temperature,
-          },
-        });
-      }
+      const openai = new OpenAI({
+        apiKey: process.env.API_KEY as string,
+        dangerouslyAllowBrowser: true
+      });
 
-      const stream = await chatRef.current.sendMessageStream({ message: text });
+      const teacher = TEACHERS.find(t => t.id === settings.teacherId)!;
+      const scenario = SCENARIOS.find(s => s.id === settings.scenarioId)!;
+      const userMode = USER_MODES.find(u => u.id === settings.userModeId)!;
+
+      const systemPrompt = generateSystemPrompt(teacher, scenario, userMode);
+
+      const chatMessages = [
+        { role: "system" as const, content: systemPrompt },
+        ...messages.map(msg => ({
+          role: (msg.role === Role.User ? "user" : "assistant") as const,
+          content: msg.content
+        })),
+        { role: "user" as const, content: text }
+      ];
+
+      const stream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: chatMessages,
+        temperature: settings.temperature,
+        max_tokens: settings.maxTokens,
+        stream: true,
+      });
+
       let fullResponse = '';
-      
+
       for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        fullResponse += chunkText;
-        setMessages(prev => prev.map((msg, index) => 
+        const content = chunk.choices[0]?.delta?.content || '';
+        fullResponse += content;
+        setMessages(prev => prev.map((msg, index) =>
           index === prev.length - 1 ? { ...msg, content: fullResponse } : msg
         ));
       }
@@ -141,7 +148,7 @@ const App: React.FC = () => {
         }
       }
 
-      setMessages(prev => prev.map((msg, index) => 
+      setMessages(prev => prev.map((msg, index) =>
             index === prev.length - 1 ? { ...msg, content: mainContent, suggestions, audioData } : msg
       ));
 
@@ -153,7 +160,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, settings, selectedTeacher.voice_profile]);
+  }, [isLoading, settings, selectedTeacher.voice_profile, messages]);
 
   const handleRetry = useCallback(async () => {
     const lastUserMessage = [...messages].reverse().find(m => m.role === Role.User);
@@ -172,7 +179,6 @@ const App: React.FC = () => {
 
   const handleClear = () => {
       setMessages([]);
-      chatRef.current = null;
   };
 
   return (

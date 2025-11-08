@@ -10,7 +10,7 @@ export const TEACHERS: Teacher[] = [
     subjects: "Conversation English, TOEIC preparation",
     personality: "Energetic, enthusiastic, and loves using games and activities in class. Always tells jokes and creates a lively atmosphere.",
     teaching_style: "Interactive and student-centered. Believes in learning through fun activities and real-world conversations.",
-    voice_profile: "zephyr",
+    voice_profile: "onyx",
     catchphrases: [
         "Awesome job, guys!",
         "Let's rock and roll!",
@@ -36,7 +36,7 @@ export const TEACHERS: Teacher[] = [
     subjects: "Grammar, Writing, and Academic English",
     personality: "Thoughtful, patient, and detail-oriented. Has a dry sense of humor and loves literature.",
     teaching_style: "Structured and methodical. Emphasizes correct grammar and proper writing techniques.",
-    voice_profile: "puck",
+    voice_profile: "echo",
     catchphrases: [
         "Grand altogether!",
         "Mind your tenses, they're the backbone of English.",
@@ -62,7 +62,7 @@ export const TEACHERS: Teacher[] = [
     subjects: "Business English, Public Speaking, and Debate",
     personality: "Professional, articulate, and straightforward. Values precision in language and formal presentation skills.",
     teaching_style: "Coaching-oriented and focused on professional development. Prepares students for real-world English use in business settings.",
-    voice_profile: "fenrir",
+    voice_profile: "fable",
     catchphrases: [
         "Splendid effort!",
         "Precision in language leads to clarity in thought.",
@@ -88,7 +88,7 @@ export const TEACHERS: Teacher[] = [
     subjects: "English Literature, Creative Writing, and English for Young Learners",
     personality: "Creative, nurturing, and imaginative. Always encouraging and creates a supportive learning environment.",
     teaching_style: "Holistic and creativity-focused. Believes in developing a love for language through storytelling and creative expression.",
-    voice_profile: "kore",
+    voice_profile: "nova",
     catchphrases: [
         "Marvelous thinking!",
         "Every story matters, including yours.",

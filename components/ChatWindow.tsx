@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Message, Role, Teacher } from '../types';
-import { decodeAudioData, createWavBlob } from '../services/geminiService';
+import { createAudioBlob } from '../services/openaiService';
 import { UserIcon, VolumeIcon, LoadingIcon, DownloadIcon, RefreshIcon, SparklesIcon } from './icons';
 
 interface ChatWindowProps {
@@ -13,19 +13,9 @@ interface ChatWindowProps {
 
 const AudioPlayer: React.FC<{ audioData: ArrayBuffer }> = ({ audioData }) => {
     const [isPlaying, setIsPlaying] = useState(false);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        return () => {
-             sourceRef.current?.stop();
-        }
-    }, [])
-    
-     useEffect(() => {
         if (audioData.byteLength > 0) {
             playAudio();
         }
@@ -33,25 +23,22 @@ const AudioPlayer: React.FC<{ audioData: ArrayBuffer }> = ({ audioData }) => {
     }, [audioData]);
 
     const playAudio = async () => {
-        if (isPlaying || !audioContextRef.current) return;
-        if (audioContextRef.current.state === 'suspended') {
-            await audioContextRef.current.resume();
-        }
-        
+        if (isPlaying) return;
+
         try {
             setIsPlaying(true);
-            const audioBuffer = await decodeAudioData(
-                new Uint8Array(audioData),
-                audioContextRef.current,
-                24000,
-                1,
-            );
-            const source = audioContextRef.current.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContextRef.current.destination);
-            source.onended = () => setIsPlaying(false);
-            source.start();
-            sourceRef.current = source;
+            const blob = createAudioBlob(audioData);
+            const url = URL.createObjectURL(blob);
+
+            const audio = new Audio(url);
+            audioRef.current = audio;
+
+            audio.onended = () => {
+                setIsPlaying(false);
+                URL.revokeObjectURL(url);
+            };
+
+            await audio.play();
         } catch (error) {
             console.error("Failed to play audio:", error);
             setIsPlaying(false);
@@ -59,8 +46,8 @@ const AudioPlayer: React.FC<{ audioData: ArrayBuffer }> = ({ audioData }) => {
     };
 
     return (
-        <button 
-          onClick={playAudio} 
+        <button
+          onClick={playAudio}
           disabled={isPlaying}
           aria-label="Play audio"
           className="p-2 rounded-full bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 disabled:bg-slate-500/10 disabled:text-slate-400 transition-colors"
@@ -76,11 +63,11 @@ const MessageBubble: React.FC<{ message: Message; teacher: Teacher; isLastMessag
 
   const handleDownload = () => {
     if (!message.audioData) return;
-    const blob = createWavBlob(message.audioData);
+    const blob = createAudioBlob(message.audioData);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dsu-ai-teacher-${new Date().toISOString()}.wav`;
+    a.download = `dsu-ai-teacher-${new Date().toISOString()}.mp3`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
