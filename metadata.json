@@ -1,0 +1,5 @@
+{
+  "name": "English Conversation with DSU Foreign Teachers",
+  "description": "An application to practice English conversation with four distinct AI foreign teachers. Users can select a teacher, a conversation scenario, and a user mode to engage in realistic, dual-language dialogues with optional text-to-speech feedback.",
+  "requestFramePermissions": []
+}
